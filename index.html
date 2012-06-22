@@ -1,0 +1,205 @@
+<!doctype html><title>Minimal tQuery Page</title>
+<script src="vendor/tquery/tquery-bundle.js"></script>
+<script src="vendor/tquery/tquery.norequirejs.js"></script>
+
+<script src="vendor/tquery/tquery.meshbasicmaterial.js"></script>
+<script src="vendor/tquery/tquery.meshlambertmaterial.js"></script>
+<script src="vendor/tquery/tquery.meshphongmaterial.js"></script>
+
+<script src="vendor/tquery/THREEx.KeyboardState.js"></script>
+<script src="vendor/tquery/tquery.keyboard.js"></script>
+
+<script src="vendor/tquery/tquery.world.createfog.js"></script>
+
+<!-- for youtube -->
+<script src="vendor/swfobject.js"></script>
+
+<link rel="stylesheet" href="css/main.css"></body>
+
+<script src='vendor/soundmanager2/script/soundmanager2.js'></script>
+<script src='js/soundmanager2Config.js'></script>
+
+
+<body><div id="ytapiplayer">INSTALL FLASH</div>
+
+<script>
+	/**
+	 * TODO
+	 * * how to make the road go on ?
+	 * * detect collision for player/roadObject
+	 *   * what to do on collision
+	 * 
+	 * * setup github private
+	 * * bind youtube player action to game actions
+	 * * some focus issues. be sure to put the focus on the game, and not youtube player
+	 * * bring some particles fireworks.js
+	 *   * which assets for explosion
+	 *
+	 * * DONE put some light
+	 * * DONE make a camera controls with the keyboard
+	 * * DONE add sound with soundmanager2
+	 * * DONE put material on the road and roadobject
+	 *   * need the material plugins
+	*/
+	var world	= tQuery.createWorld({
+		camera	: new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 100 )
+	}).boilerplate().start();
+
+	world.add(world.tCamera());
+
+	world.addFogExp2({density: 0.02, colorHex: 0x000000});
+
+	if( false ){
+		soundManager.onready(function(){
+			var sound	= soundManager.createSound({
+				id	: "mySound",
+				url	: "sounds/Hot-Butter-Popcorn.mp3",
+				autoLoad: true,
+				onload	: function(success){
+					console.log("loading sound", this.url, success ? "suceed" : "failed");
+					sound.play()
+				}
+			});	
+		}.bind(this));			
+	}
+
+	// make the background transparent
+	world.tRenderer().setClearColorHex(0,0);
+	// setup camera control
+	//world.getCameraControls().rangeX	/= 40/8;
+	//world.getCameraControls().rangeY	/= 40/8;
+	
+	world.removeCameraControls();
+	world.tCamera().position.set(0,1,2).normalize().setLength(3)
+	//world.tCamera().position.set(0,0.6,10)
+	world.tCamera().lookAt(new THREE.Vector3(0,0,-3.5))
+
+
+	tQuery.createAmbientLight().addTo(world)
+		.color(0x444444)	
+	tQuery.createDirectionalLight().addTo(world)
+		.color(0xCCCCCC)
+		.position(-1,1,1).intensity(1);
+
+	var roadObject3D= tQuery.createObject3D().addTo(world);
+
+
+	var laneW	= 1;
+	var nLane	= 8;
+	var roadW	= nLane * laneW;
+	var roadH	= 0.01;
+	var roadD	= 50*5;
+	var nRoadObjects= 40*5;
+	
+	// make the camera move
+	world.loop().hook(function(delta, now){
+		var speed	= 10;	// in zCoord/seconds
+		world.tCamera().position.z	-= speed*delta;
+	})
+	
+	var track	= new Array(nRoadObjects);
+	var duration	= 3.5*60;
+	// generate items
+	for(var i = 0; i < nRoadObjects; i++){
+		var type	= Math.random() < 0.2 ? 'cube' : 'sphere';
+		var item	= {
+			type	: type,
+			lane	: Math.floor(Math.random()*8),
+			absTime	: Math.random()*duration
+		};
+		track[i]	= item;
+	}
+	// sort it by absTime
+	track.sort(function(item1, item2){  
+		return item1.absTime - item2.absTime  
+	});  
+
+	
+	var roadObjects	= [];
+	var tMaterialCube	= tQuery.createMeshLambertMaterial().color(0xFF8888).get(0);
+	var tMaterialSphere	= tQuery.createMeshLambertMaterial().color(0xaaFFaa).get(0);
+	for(var i = 0; i < nRoadObjects; i++){
+		var item	= track[i];
+		if( item.type === 'cube'){
+			var cubeH	= 0.75*laneW/2 / 2;
+			var roadObject	= tQuery.createCube(0.75*laneW/2, cubeH, 0.75*laneW/2, tMaterialCube)
+						.geometry().translateY(cubeH/2).back();
+		}else if( item.type === 'sphere'){
+			var roadObject	= tQuery.createSphere(0.75*laneW/2, 32, 16, 0, Math.PI*2, 0, Math.PI/2, tMaterialSphere);
+		}else	console.assert(false);
+		var positionX	= -roadW/2 + laneW/2 + item.lane*laneW;
+		var positionY	=  0;
+		var positionZ	= -(item.absTime/duration)*roadD;
+		roadObject.position(positionX, positionY, positionZ)
+
+		roadObject.addTo(roadObject3D)
+		roadObjects.push(roadObject)
+	}
+	
+	world.loop().hook(function(delta, now){
+		var position	= world.tCamera().position;
+		var keyboard	= tQuery.keyboard();
+		var speed	= 0.1;
+		if( keyboard.pressed('left') )	position.x	-= speed;
+		if( keyboard.pressed('right') )	position.x	+= speed;
+		
+		position.x	= Math.min(position.x, +roadW/2)
+		position.x	= Math.max(position.x, -roadW/2)
+	})
+
+	
+	// Road
+	// - issue in the translationX ... somebody is half lane width off
+	var tMaterial	= tQuery.createMeshLambertMaterial().ambient(0x444444).color(0xFFaaFF).get(0);
+	var roadObject3D= tQuery.createPlane(roadW, roadD, tMaterial).addTo(roadObject3D)
+			.geometry()
+				.translateZ(-roadD/2)
+				.back();
+
+	// Border
+	var borderW	= laneW;
+	var borderH	= laneW/4;
+	var tMaterial	= tQuery.createMeshLambertMaterial().ambient(0x444444).color(0xFFaaFF).get(0);
+	var borderLen	= Math.sqrt(borderW*borderW+borderH*borderH);
+	var borderAz	= Math.atan2(borderH, borderW);
+	var leftBorder	= tQuery.createPlane(borderLen, roadD, tMaterial).addTo(roadObject3D)
+			.geometry().rotateZ(-borderAz).back()
+			.translateX(-roadW/2 - borderW/2)
+			.translateY(borderH/2)
+			.translateZ(-roadD/2)
+	var rightBorder	= tQuery.createPlane(borderLen, roadD, tMaterial).addTo(roadObject3D)
+			.geometry().rotateZ(+borderAz).back()
+			.translateX(+roadW/2 + borderW/2)
+			.translateY(borderH/2)
+			.translateZ(-roadD/2)
+
+	// sideWalk
+	var walkW	= 10;
+	var tMaterial	= tQuery.createMeshLambertMaterial().ambient(0x444444).color(0xFFaaFF).get(0);
+	var leftWalk	= tQuery.createPlane(walkW, roadD, tMaterial).addTo(roadObject3D)
+			.translateX(-roadW/2 - borderW - walkW/2)
+			.translateY(borderH)
+			.translateZ(-roadD/2)
+	var rightWalk	= tQuery.createPlane(walkW, roadD, tMaterial).addTo(roadObject3D)
+			.translateX(+roadW/2 + borderW + walkW/2)
+			.translateY(borderH)
+			.translateZ(-roadD/2)
+
+
+	
+	// add a youtube video
+	if( true ){
+		embedVideoPlayer('x2HYohNWlD4', 14);
+		function embedVideoPlayer(videoId, startsAt, endsAt) {
+			var params	= {allowScriptAccess: 'always', bgcolor: '#ffffff', wmode: 'transparent'};
+			var atts	= {
+				id	: 'ytapiplayer'
+			};
+			swfobject.embedSWF('http://www.youtube.com/v/'
+				+ videoId
+				+ '?enablejsapi=1&playerapiid=ytplayer&version=3&controls=0&rel=0&iv_load_policy=3',
+				'ytapiplayer','320px', '240px'
+				, '8', null, null, params, atts);
+		}
+	}
+</script></body>
