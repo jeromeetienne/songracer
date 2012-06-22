@@ -27,14 +27,14 @@
 	/**
 	 * TODO
 	 * * how to make the road go on ?
-	 * * detect collision for player/roadObject
-	 *   * what to do on collision
 	 * 
 	 * * bind youtube player action to game actions
 	 * * some focus issues. be sure to put the focus on the game, and not youtube player
 	 * * bring some particles fireworks.js
 	 *   * which assets for explosion
 	 *
+	 * * DONE detect collision for player/roadObject
+	 *   * what to do on collision
 	 * * DONE setup github private
 	 * * DONE put some light
 	 * * DONE make a camera controls with the keyboard
@@ -48,6 +48,7 @@
 	}).boilerplate().start();
 
 	world.add(world.tCamera());
+	
 
 	//////////////////////////////////////////////////////////////////////////
 	// Sounds
@@ -206,14 +207,36 @@
 			}else	console.assert(false);
 		})
 	})
-	
+
+	// move player by keyboard
+	if( false ){
+		world.loop().hook(function(delta, now){
+			var position	= world.tCamera().position;
+			var keyboard	= tQuery.keyboard();
+			var speed	= 0.1;
+			if( keyboard.pressed('left') )	position.x	-= speed;
+			if( keyboard.pressed('right') )	position.x	+= speed;
+		});
+	}
+
+	// move player by mouse
+	if( true ){
+		var mouseX	= 0;
+		var mouseY	= 0;
+		document.body.addEventListener('mousemove', function(event){
+			mouseX	= (event.clientX / window.innerWidth ) - 0.5;
+			mouseY	= (event.clientY / window.innerHeight) - 0.5;
+		});
+		world.loop().hook(function(delta, now){
+			var position	= world.tCamera().position;
+			position.x	= 1.5 * mouseX * roadW;
+			position.x	= Math.min(position.x, +(roadW-laneW)/2)
+			position.x	= Math.max(position.x, -(roadW-laneW)/2)
+		});
+	}
+
 	world.loop().hook(function(delta, now){
 		var position	= world.tCamera().position;
-		var keyboard	= tQuery.keyboard();
-		var speed	= 0.1;
-		if( keyboard.pressed('left') )	position.x	-= speed;
-		if( keyboard.pressed('right') )	position.x	+= speed;
-		
 		position.x	= Math.min(position.x, +(roadW-laneW)/2)
 		position.x	= Math.max(position.x, -(roadW-laneW)/2)
 	})
