@@ -19,6 +19,7 @@
 <script src='vendor/soundmanager2/script/soundmanager2.js'></script>
 <script src='js/soundmanager2Config.js'></script>
 
+<script src='vendor/underscore-min.js'></script>
 
 <body><div id="ytapiplayer">INSTALL FLASH</div>
 
@@ -29,12 +30,12 @@
 	 * * detect collision for player/roadObject
 	 *   * what to do on collision
 	 * 
-	 * * setup github private
 	 * * bind youtube player action to game actions
 	 * * some focus issues. be sure to put the focus on the game, and not youtube player
 	 * * bring some particles fireworks.js
 	 *   * which assets for explosion
 	 *
+	 * * DONE setup github private
 	 * * DONE put some light
 	 * * DONE make a camera controls with the keyboard
 	 * * DONE add sound with soundmanager2
@@ -42,36 +43,55 @@
 	 *   * need the material plugins
 	*/
 	var world	= tQuery.createWorld({
+		// put a custom camera
 		camera	: new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 100 )
 	}).boilerplate().start();
 
 	world.add(world.tCamera());
 
-	world.addFogExp2({density: 0.02, colorHex: 0x000000});
-
+	//////////////////////////////////////////////////////////////////////////
+	// Sounds
+	var sounds	= {};
 	if( false ){
 		soundManager.onready(function(){
-			var sound	= soundManager.createSound({
-				id	: "mySound",
+			soundManager.createSound({
+				id	: "soundTrack",
 				url	: "sounds/Hot-Butter-Popcorn.mp3",
 				autoLoad: true,
+				//autoPlay: true,
 				onload	: function(success){
-					console.log("loading sound", this.url, success ? "suceed" : "failed");
-					sound.play()
+					sounds[this.sID]	= this;
 				}
-			});	
+			});
+			soundManager.createSound({
+				id	: "hitSphere",
+				url	: "sounds/pacman/eating.mp3",
+				autoLoad: true,
+				onload	: function(success){
+					sounds[this.sID]	= this;
+				}
+			});
+			soundManager.createSound({
+				id	: "hitCube",
+				url	: "sounds/pacman/die.mp3",
+				autoLoad: true,
+				onload	: function(success){
+					console.log("loaded", success, this)
+					sounds[this.sID]	= this;
+				}
+			});
 		}.bind(this));			
 	}
 
 	// make the background transparent
 	world.tRenderer().setClearColorHex(0,0);
+	world.addFogExp2({density: 0.02});
 	// setup camera control
 	//world.getCameraControls().rangeX	/= 40/8;
 	//world.getCameraControls().rangeY	/= 40/8;
 	
 	world.removeCameraControls();
 	world.tCamera().position.set(0,1,2).normalize().setLength(3)
-	//world.tCamera().position.set(0,0.6,10)
 	world.tCamera().lookAt(new THREE.Vector3(0,0,-3.5))
 
 
@@ -88,14 +108,16 @@
 	var nLane	= 8;
 	var roadW	= nLane * laneW;
 	var roadH	= 0.01;
-	var roadD	= 50*5;
+	var roadD	= 50*30;
 	var nRoadObjects= 40*5;
+	var speed	= 10;	// in zCoord/seconds
+
 	
 	// make the camera move
 	world.loop().hook(function(delta, now){
-		var speed	= 10;	// in zCoord/seconds
 		world.tCamera().position.z	-= speed*delta;
 	})
+
 	
 	var track	= new Array(nRoadObjects);
 	var duration	= 3.5*60;
@@ -109,16 +131,21 @@
 		};
 		track[i]	= item;
 	}
+	//track	= [{
+	//	type	: 'sphere',
+	//	lane	: 7,
+	//	absTime	: 0
+	//}];
+	
 	// sort it by absTime
 	track.sort(function(item1, item2){  
 		return item1.absTime - item2.absTime  
-	});  
-
+	});
 	
 	var roadObjects	= [];
 	var tMaterialCube	= tQuery.createMeshLambertMaterial().color(0xFF8888).get(0);
 	var tMaterialSphere	= tQuery.createMeshLambertMaterial().color(0xaaFFaa).get(0);
-	for(var i = 0; i < nRoadObjects; i++){
+	for(var i = 0; i < track.length; i++){
 		var item	= track[i];
 		if( item.type === 'cube'){
 			var cubeH	= 0.75*laneW/2 / 2;
@@ -131,10 +158,54 @@
 		var positionY	=  0;
 		var positionZ	= -(item.absTime/duration)*roadD;
 		roadObject.position(positionX, positionY, positionZ)
+		roadObject.geometry().computeAll();
 
 		roadObject.addTo(roadObject3D)
 		roadObjects.push(roadObject)
 	}
+
+	world.loop().hook(function(delta, now){
+		var playerW	= laneW/2;
+		var playerH	= laneW/2;
+		var playerD	= laneW/2;
+		var playerPos	= world.tCamera().position.clone();
+		playerPos.y	= 0;
+		playerPos.z	+= playerOffset.z;
+		var playerBox	= {
+			min	: {
+				x	: playerPos.x - playerW/2,
+				y	: playerPos.y - playerH/2,
+				z	: playerPos.z - playerD/2
+			},
+			max	: {
+				x	: playerPos.x + playerW/2,
+				y	: playerPos.y + playerH/2,
+				z	: playerPos.z + playerD/2
+			},
+		};
+		//console.log("playerBox", playerBox, roadObjects.length, roadObjects[0].get(0).geometry.boundingBox )
+		// TODO this test against each and every road object... make it faster
+		roadObjects.forEach(function(roadObject){
+			var boundingBox	= roadObject.get(0).geometry.boundingBox;
+			var objectPos	= roadObject.get(0).position;
+			console.assert(boundingBox);
+			if( playerBox.max.x < boundingBox.min.x + objectPos.x )	return;
+			if( playerBox.max.y < boundingBox.min.y + objectPos.y )	return;
+			if( playerBox.max.z < boundingBox.min.z + objectPos.z )	return;
+
+			if( playerBox.min.x > boundingBox.max.x + objectPos.x )	return;
+			if( playerBox.min.y > boundingBox.max.y + objectPos.y )	return;
+			if( playerBox.min.z > boundingBox.max.z + objectPos.z )	return;
+			
+			if( roadObject.get(0).visible === false )	return;
+			
+			if( roadObject.get(0).geometry instanceof THREE.SphereGeometry ){
+				playerOnCollideSphere(roadObject)
+			}else if( roadObject.get(0).geometry instanceof THREE.CubeGeometry ){
+				playerOnCollideCube(roadObject)
+			}else	console.assert(false);
+		})
+	})
 	
 	world.loop().hook(function(delta, now){
 		var position	= world.tCamera().position;
@@ -143,10 +214,31 @@
 		if( keyboard.pressed('left') )	position.x	-= speed;
 		if( keyboard.pressed('right') )	position.x	+= speed;
 		
-		position.x	= Math.min(position.x, +roadW/2)
-		position.x	= Math.max(position.x, -roadW/2)
+		position.x	= Math.min(position.x, +(roadW-laneW)/2)
+		position.x	= Math.max(position.x, -(roadW-laneW)/2)
 	})
 
+
+	var playerBar	= tQuery.createPlane(laneW, laneW).addTo(world)
+				.setLambertMaterial().color(0xaaaaaa).back()
+	var playerOffset= new THREE.Vector3(0,0, -8);
+	playerBar.position(playerOffset);
+	// make playerBar follow the camera
+	world.loop().hook(function(delta, now){
+		var camPosition	= world.tCamera().position.clone();
+		var barPosition	= camPosition.addSelf( playerOffset );
+		barPosition.y	= 0.01;
+		playerBar.position( barPosition );
+	})
+	
+	function playerOnCollideSphere(roadObject){
+		roadObject.get(0).visible	= false;
+		sounds.hitSphere	&& sounds.hitSphere.play()
+	}
+	function playerOnCollideCube(roadObject){
+		roadObject.get(0).visible	= false;
+		sounds.hitCube		&& sounds.hitCube.play()
+	}
 	
 	// Road
 	// - issue in the translationX ... somebody is half lane width off
@@ -188,7 +280,7 @@
 
 	
 	// add a youtube video
-	if( true ){
+	if( false ){
 		embedVideoPlayer('x2HYohNWlD4', 14);
 		function embedVideoPlayer(videoId, startsAt, endsAt) {
 			var params	= {allowScriptAccess: 'always', bgcolor: '#ffffff', wmode: 'transparent'};
