@@ -1,4 +1,4 @@
-<!doctype html><title>Minimal tQuery Page</title>
+<!doctype html><head><title>Minimal tQuery Page</title>
 <script src="vendor/tquery/tquery-bundle.js"></script>
 <script src="vendor/tquery/tquery.norequirejs.js"></script>
 
@@ -10,18 +10,20 @@
 <script src="vendor/tquery/tquery.keyboard.js"></script>
 
 <script src="vendor/tquery/tquery.world.createfog.js"></script>
-
-<!-- for youtube -->
 <script src="vendor/swfobject.js"></script>
-
-<link rel="stylesheet" href="css/main.css"></body>
-
 <script src='vendor/soundmanager2/script/soundmanager2.js'></script>
-<script src='js/soundmanager2Config.js'></script>
-
 <script src='vendor/underscore-min.js'></script>
 
-<body><div id="ytapiplayer">INSTALL FLASH</div>
+<script src='js/soundmanager2Config.js'></script>
+<script src='js/misc.js'></script>
+<script src='js/videoData.js'></script>
+<script src='js/video.js'></script>
+
+<link rel="stylesheet" href="css/main.css">
+</head>
+
+<body id="body">
+<div id="ytapiplayer"><a href="http://get.adobe.com/flashplayer/" rel="nofollow" target="_blank">Flash</a> + JavaScript needed</div>
 
 <script>
 	/**
@@ -32,41 +34,36 @@
 	 * * some focus issues. be sure to put the focus on the game, and not youtube player
 	 * * bring some particles fireworks.js
 	 *   * which assets for explosion
-	 *
-	 * * DONE detect collision for player/roadObject
-	 *   * what to do on collision
-	 * * DONE setup github private
-	 * * DONE put some light
-	 * * DONE make a camera controls with the keyboard
-	 * * DONE add sound with soundmanager2
-	 * * DONE put material on the road and roadobject
-	 *   * need the material plugins
+	 * what to do on collision
+	 * need the road and roadobject material plugins
 	*/
+
 	var world	= tQuery.createWorld({
 		// put a custom camera
 		camera	: new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 100 )
 	}).boilerplate().start();
 
+	var video = new Video();
+	window.onload = init;
+
 	world.add(world.tCamera());
-	
+
+	function init() {
+		var videoData = new VideoData();
+		// videoData.setRandom();
+		videoData.setRandomByCategory('pop');
+		video.setByData(videoData);
+		video.embed();
+	}
 
 	//////////////////////////////////////////////////////////////////////////
 	// Sounds
 	var sounds	= {};
-	if( false ){
+	if( true ){
 		soundManager.onready(function(){
 			soundManager.createSound({
-				id	: "soundTrack",
-				url	: "sounds/Hot-Butter-Popcorn.mp3",
-				autoLoad: true,
-				//autoPlay: true,
-				onload	: function(success){
-					sounds[this.sID]	= this;
-				}
-			});
-			soundManager.createSound({
 				id	: "hitSphere",
-				url	: "sounds/pacman/eating.mp3",
+				url	: "sounds/power-up.mp3",
 				autoLoad: true,
 				onload	: function(success){
 					sounds[this.sID]	= this;
@@ -74,7 +71,7 @@
 			});
 			soundManager.createSound({
 				id	: "hitCube",
-				url	: "sounds/pacman/die.mp3",
+				url	: "sounds/explosion.mp3",
 				autoLoad: true,
 				onload	: function(success){
 					console.log("loaded", success, this)
@@ -105,13 +102,13 @@
 	var roadObject3D= tQuery.createObject3D().addTo(world);
 
 
-	var laneW	= 1;
-	var nLane	= 8;
-	var roadW	= nLane * laneW;
-	var roadH	= 0.01;
-	var roadD	= 50*30;
-	var nRoadObjects= 40*5;
-	var speed	= 10;	// in zCoord/seconds
+	var laneW	= 6;
+	var nLane	= 6;
+	var roadW	= nLane * laneW; // width
+	var roadH	= 0.01; // height
+	var roadD	= 50 * 30; // depth
+	var nRoadObjects= 40 * 4;
+	var speed	= 40;	// in zCoord/seconds
 
 	
 	// make the camera move
@@ -124,10 +121,10 @@
 	var duration	= 3.5*60;
 	// generate items
 	for(var i = 0; i < nRoadObjects; i++){
-		var type	= Math.random() < 0.2 ? 'cube' : 'sphere';
+		var type	= Math.random() < 0.7 ? 'cube' : 'sphere';
 		var item	= {
 			type	: type,
-			lane	: Math.floor(Math.random()*8),
+			lane	: Math.floor( Math.random()*nLane ),
 			absTime	: Math.random()*duration
 		};
 		track[i]	= item;
@@ -145,19 +142,22 @@
 	
 	var roadObjects	= [];
 	var tMaterialCube	= tQuery.createMeshLambertMaterial().color(0xFF8888).get(0);
-	var tMaterialSphere	= tQuery.createMeshLambertMaterial().color(0xaaFFaa).get(0);
+	var tMaterialSphere	= tQuery.createMeshLambertMaterial().color(0xFFFFFF).opacity(.75).get(0);
 	for(var i = 0; i < track.length; i++){
 		var item	= track[i];
-		if( item.type === 'cube'){
-			var cubeH	= 0.75*laneW/2 / 2;
-			var roadObject	= tQuery.createCube(0.75*laneW/2, cubeH, 0.75*laneW/2, tMaterialCube)
-						.geometry().translateY(cubeH/2).back();
-		}else if( item.type === 'sphere'){
-			var roadObject	= tQuery.createSphere(0.75*laneW/2, 32, 16, 0, Math.PI*2, 0, Math.PI/2, tMaterialSphere);
-		}else	console.assert(false);
 		var positionX	= -roadW/2 + laneW/2 + item.lane*laneW;
 		var positionY	=  0;
 		var positionZ	= -(item.absTime/duration)*roadD;
+		if( item.type === 'cube'){
+			var cubeH	= 0.75*laneW/2;
+			var roadObject	= tQuery.createCube(0.75*laneW, cubeH, 0.75*laneW/2, tMaterialCube)
+						.geometry().translateY(cubeH/2).back();
+		}else if( item.type === 'sphere'){
+			var radius = 0.75*laneW/2;		
+			var roadObject	= tQuery.createSphere(radius, 32, 16, 0, Math.PI*2, 0, Math.PI/2, tMaterialSphere);
+			roadObject.doubleSided = true;
+			positionY -= .5; // make sphere sink a bit into ground for better looks
+		}else	console.assert(false);
 		roadObject.position(positionX, positionY, positionZ)
 		roadObject.geometry().computeAll();
 
@@ -206,6 +206,8 @@
 				playerOnCollideCube(roadObject)
 			}else	console.assert(false);
 		})
+
+		video.handleVolumeAutoDecrease();
 	})
 
 	// move player by keyboard
@@ -229,9 +231,19 @@
 		});
 		world.loop().hook(function(delta, now){
 			var position	= world.tCamera().position;
-			position.x	= 2 * mouseX * roadW;
+			position.x	= 1.5 * mouseX * roadW;
 			position.x	= Math.min(position.x, +(roadW-laneW)/2)
 			position.x	= Math.max(position.x, -(roadW-laneW)/2)
+
+			var moveBackground = false;
+			var body = document.getElementById('body');
+			var videoElm = document.getElementById('ytapiplayer');
+			if (moveBackground && body && videoElm) {
+				body.style.backgroundPosition = ( 50 - (position.x * .6) ) + '% 0';
+				videoElm.style.left = ( 50 - (position.x * .25) - 9) + '%';
+				videoElm.style.marginLeft = 0;
+				videoElm.style.marginRight = 0;
+			}
 		});
 	}
 
@@ -242,8 +254,8 @@
 	})
 
 
-	var playerBar	= tQuery.createPlane(laneW, laneW).addTo(world)
-				.setLambertMaterial().color(0xaaaaaa).back()
+	var playerBar	= tQuery.createPlane(laneW / 4, laneW / 2).addTo(world)
+				.setLambertMaterial().color(0xFFFFFF).back()
 	var playerOffset= new THREE.Vector3(0,0, -8);
 	playerBar.position(playerOffset);
 	// make playerBar follow the camera
@@ -256,10 +268,13 @@
 	
 	function playerOnCollideSphere(roadObject){
 		roadObject.get(0).visible	= false;
+		video.powerUpVolume();
 		sounds.hitSphere	&& sounds.hitSphere.play()
 	}
+
 	function playerOnCollideCube(roadObject){
 		roadObject.get(0).visible	= false;
+		video.killVolume();
 		sounds.hitCube		&& sounds.hitCube.play()
 	}
 	
@@ -299,22 +314,5 @@
 			.translateX(+roadW/2 + borderW + walkW/2)
 			.translateY(borderH)
 			.translateZ(-roadD/2)
-
-
-	
-	// add a youtube video
-	if( true ){
-		embedVideoPlayer('x2HYohNWlD4', 14);
-		function embedVideoPlayer(videoId, startsAt, endsAt) {
-			var params	= {allowScriptAccess: 'always', bgcolor: '#ffffff', wmode: 'transparent'};
-			var atts	= {
-				id	: 'ytapiplayer'
-			};
-			swfobject.embedSWF('http://www.youtube.com/v/'
-				+ videoId
-				+ '?enablejsapi=1&playerapiid=ytplayer&version=3&controls=0&rel=0&iv_load_policy=3',
-				'ytapiplayer','320px', '240px'
-				, '8', null, null, params, atts);
-		}
-	}
-</script></body>
+</script>
+</body>
